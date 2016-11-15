@@ -2216,11 +2216,9 @@ static jl_value_t *ml_matches(union jl_typemap_t defs, int offs,
 // -1 for no limit.
 JL_DLLEXPORT jl_value_t *jl_matching_methods(jl_tupletype_t *types, int lim, int include_ambiguous)
 {
-    assert(jl_nparams(types) > 0);
-    if (jl_tparam0(types) == jl_bottom_type)
-        return (jl_value_t*)jl_alloc_vec_any(0);
-    assert(jl_is_datatype(jl_tparam0(types)));
-    jl_methtable_t *mt = ((jl_datatype_t*)jl_tparam0(types))->name->mt;
+    jl_datatype_t *dt = jl_first_argument_datatype(types);
+    assert(dt != NULL);
+    jl_methtable_t *mt = dt->name->mt;
     if (mt == NULL)
         return (jl_value_t*)jl_alloc_vec_any(0);
     return ml_matches(mt->defs, 0, types, lim, include_ambiguous);

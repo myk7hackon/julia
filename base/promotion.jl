@@ -11,22 +11,19 @@ function typejoin(a::ANY, b::ANY)
         return b
     elseif b <: a
         return a
-    end
-    if isa(a,UnionAll); a = a.body; end
-    if isa(b,UnionAll); b = b.body; end
-    if isa(a,TypeVar)
+    elseif isa(a,UnionAll)
+        return UnionAll(a.var, typejoin(a.body, b))
+    elseif isa(b,UnionAll)
+        return UnionAll(b.var, typejoin(a, b.body))
+    elseif isa(a,TypeVar)
         return typejoin(a.ub, b)
-    end
-    if isa(b,TypeVar)
+    elseif isa(b,TypeVar)
         return typejoin(a, b.ub)
-    end
-    if isa(a,Union)
+    elseif isa(a,Union)
         return typejoin(typejoin(a.a,a.b), b)
-    end
-    if isa(b,Union)
+    elseif isa(b,Union)
         return typejoin(a, typejoin(b.a,b.b))
-    end
-    if a <: Tuple
+    elseif a <: Tuple
         if !(b <: Tuple)
             return Any
         end
@@ -90,7 +87,7 @@ function typejoin(a::ANY, b::ANY)
                     p[i] = aprimary.parameters[i]
                 end
             end
-            return a.name.wrapper{p...}
+            return rewrap_unionall(a.name.wrapper{p...}, a.name.wrapper)
         end
         b = supertype(b)
     end
@@ -100,8 +97,9 @@ end
 # Returns length, isfixed
 function full_va_len(p)
     isempty(p) && return 0, true
-    if isvarargtype(p[end])
-        N = p[end].parameters[2]
+    last = p[end]
+    if isvarargtype(last)
+        N = unwrap_unionall(last).parameters[2]
         if isa(N, Integer)
             return (length(p) + N - 1)::Int, true
         end

@@ -1397,24 +1397,27 @@ static jl_value_t *intersect(jl_value_t *x, jl_value_t *y, jl_stenv_t *e, int pa
                     return jl_bottom_type;
                 jl_value_t *ub=NULL, *lb=NULL;
                 JL_GC_PUSH2(&lb, &ub);
-                ub = intersect_ufirst(xub, yub, e, xx->depth0);
+                ub = intersect_ufirst(xub, yub, e, xx ? xx->depth0 : 0);
                 lb = simple_join(xlb, ylb);
-                assert(yy);
-                if (lb != y)
-                    yy->lb = lb;
-                if (ub != y)
-                    yy->ub = ub;
-                xx->lb = y;
-                xx->ub = y;
-                assert(yy->ub != y);
-                assert(yy->lb != y);
-                assert(xx->ub != x);
+                if (yy) {
+                    if (lb != y)
+                        yy->lb = lb;
+                    if (ub != y)
+                        yy->ub = ub;
+                    assert(yy->ub != y);
+                    assert(yy->lb != y);
+                }
+                if (xx) {
+                    xx->lb = y;
+                    xx->ub = y;
+                    assert(xx->ub != x);
+                }
                 JL_GC_POP();
                 return y;
             }
             record_var_occurrence(xx, e, param);
             record_var_occurrence(yy, e, param);
-            if (xx->concrete && !yy->concrete) {
+            if (xx && yy && xx->concrete && !yy->concrete) {
                 return intersect_var((jl_tvar_t*)x, y, e, R, param);
             }
             return intersect_var((jl_tvar_t*)y, x, e, !R, param);
@@ -1631,4 +1634,14 @@ jl_value_t *jl_type_intersection_matching(jl_value_t *a, jl_value_t *b, jl_svec_
 JL_DLLEXPORT jl_value_t *jl_type_intersection(jl_value_t *a, jl_value_t *b)
 {
     return jl_type_intersection_matching(a, b, NULL);
+}
+
+JL_DLLEXPORT jl_svec_t *jl_type_intersection_env(jl_value_t *a, jl_value_t *b)
+{
+    jl_svec_t *env = jl_emptysvec;
+    JL_GC_PUSH1(&env);
+    jl_value_t *ti = jl_type_intersection_matching(a, b, &env);
+    jl_svec_t *pair = jl_svec2(ti, env);
+    JL_GC_POP();
+    return pair;
 }

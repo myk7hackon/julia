@@ -273,6 +273,16 @@ Determine the declared type of a field (specified by name or index) in a composi
 """
 fieldtype
 
+"""
+    fieldindex(T, name::Symbol, err:Bool=true)
+
+Get the index of a named field, throwing an error if the field does not exist (when err==true)
+or returning 0 (when err==false).
+"""
+function fieldindex(T::DataType, name::Symbol, err::Bool=true)
+    return Int(ccall(:jl_field_index, Cint, (Any, Any, Cint), T, name, err)+1)
+end
+
 type_alignment(x::DataType) = (@_pure_meta; ccall(:jl_get_alignment, Csize_t, (Any,), x))
 
 # return all instances, for types that can be enumerated
@@ -366,6 +376,7 @@ function _methods(f::ANY,t::ANY,lim)
 end
 
 function _methods_by_ftype(t::ANY, lim)
+#=
     tp = t.parameters::SimpleVector
     nu = 1
     for ti in tp
@@ -377,9 +388,10 @@ function _methods_by_ftype(t::ANY, lim)
         return _methods(Any[tp...], length(tp), lim, [])
     end
     # XXX: the following can return incorrect answers that the above branch would have corrected
+=#
     return ccall(:jl_matching_methods, Any, (Any,Cint,Cint), t, lim, 0)
 end
-
+#=
 function _methods(t::Array,i,lim::Integer,matching::Array{Any,1})
     if i == 0
         new = ccall(:jl_matching_methods, Any, (Any,Cint,Cint), Tuple{t...}, lim, 0)
@@ -402,7 +414,7 @@ function _methods(t::Array,i,lim::Integer,matching::Array{Any,1})
     end
     return matching
 end
-
+=#
 # high-level, more convenient method lookup functions
 
 # type for reflecting and pretty-printing a subset of methods
