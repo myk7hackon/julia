@@ -37,7 +37,7 @@ function typejoin(a::ANY, b::ANY)
         if laf < lbf
             if isvarargtype(ap[lar]) && !afixed
                 c = Vector{Any}(laf)
-                c[laf] = Vararg{typejoin(ap[lar].parameters[1], tailjoin(bp,laf))}
+                c[laf] = Vararg{typejoin(unwrapva(ap[lar]), tailjoin(bp,laf))}
                 n = laf-1
             else
                 c = Vector{Any}(laf+1)
@@ -47,7 +47,7 @@ function typejoin(a::ANY, b::ANY)
         elseif lbf < laf
             if isvarargtype(bp[lbr]) && !bfixed
                 c = Vector{Any}(lbf)
-                c[lbf] = Vararg{typejoin(bp[lbr].parameters[1], tailjoin(ap,lbf))}
+                c[lbf] = Vararg{typejoin(unwrapva(bp[lbr]), tailjoin(ap,lbf))}
                 n = lbf-1
             else
                 c = Vector{Any}(lbf+1)

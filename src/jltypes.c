@@ -1231,7 +1231,10 @@ void jl_reinstantiate_inner_types(jl_datatype_t *t) // can throw!
                 env[i * 2 + 1] = jl_svecref(ndt->parameters, i);
 
             int k;
-            // TODO jb/subtype - might need to allocate a new svec here
+            if (ndt->types == NULL) {
+                ndt->types = jl_alloc_svec(jl_svec_len(t->types));
+                jl_gc_wb(ndt, ndt->types);
+            }
             for (k=0; k < jl_svec_len(t->types); k++) {
                 jl_svecset(ndt->types, k, instantiate_with(jl_svecref(t->types,k), env, n, NULL, &top));
             }
@@ -1468,13 +1471,13 @@ static int type_morespecific_(jl_value_t *a, jl_value_t *b, int invariant)
         jl_value_t *tp0a = jl_tparam0(a);
         if (jl_is_typevar(tp0a)) {
             jl_value_t *ub = ((jl_tvar_t*)tp0a)->ub;
-            if (jl_subtype(ub, b) &&
+            if (jl_isa(ub, b) &&
                 !jl_subtype((jl_value_t*)jl_any_type, ub)) {
                 return 1;
             }
         }
         else {
-            if (jl_subtype(tp0a, b))
+            if (jl_isa(tp0a, b))
                 return 1;
         }
     }

@@ -216,6 +216,13 @@ static jl_value_t *simple_join(jl_value_t *a, jl_value_t *b)
         return a;
     if (jl_is_uniontype(b) && in_union(b, a))
         return b;
+    if (is_kind(a) && jl_is_type_type(b) && jl_typeof(jl_tparam0(b)) == a)
+        return a;
+    if (is_kind(b) && jl_is_type_type(a) && jl_typeof(jl_tparam0(a)) == b)
+        return b;
+    if (jl_is_type_type(a) && jl_is_type_type(b) && !jl_is_typevar(jl_tparam0(a)) &&
+        jl_typeof(jl_tparam0(a)) == jl_typeof(jl_tparam0(b)))
+        return jl_typeof(jl_tparam0(a));
     return jl_new_struct(jl_uniontype_type, a, b);
 }
 
@@ -398,6 +405,9 @@ static int subtype_unionall(jl_value_t *t, jl_unionall_t *u, jl_stenv_t *e, int8
                 val = (jl_value_t*)u->var;
             else
                 val = (jl_value_t*)jl_new_typevar(u->var->name, vb.lb, vb.ub);
+            // widen Type{x} to typeof(x) in argument position
+            if (jl_is_type_type(val) && !vb.occurs_inv && !jl_is_typevar(jl_tparam0(val)))
+                val = jl_typeof(jl_tparam0(val));
             e->envout[e->envidx] = val;
         }
     }
@@ -491,7 +501,11 @@ static int subtype_tuple(jl_datatype_t *xd, jl_datatype_t *yd, jl_stenv_t *e, in
         if (vx && !vy)
             return 0;
         if (!vx && vy) {
-            if (!subtype(xi, jl_unwrap_vararg(yi), e, param))
+            jl_tvar_t *p1=NULL, *p2=NULL;
+            yi = jl_tparam0(unwrap_2_unionall(yi, &p1, &p2));
+            if (yi == (jl_value_t*)p1 || yi == (jl_value_t*)p2)
+                yi = ((jl_tvar_t*)yi)->ub;
+            if (!subtype(xi, yi, e, param))
                 return 0;
         }
         else {
@@ -608,8 +622,11 @@ static int subtype(jl_value_t *x, jl_value_t *y, jl_stenv_t *e, int param)
             }
             return ans;
         }
-        while (xd != jl_any_type && xd->name != yd->name)
+        while (xd != jl_any_type && xd->name != yd->name) {
+            if (xd->super == NULL)
+                jl_errorf("circular type parameter constraint in definition of %s", jl_symbol_name(xd->name->name));
             xd = xd->super;
+        }
         if (xd == jl_any_type) return 0;
         if (jl_is_tuple_type(xd))
             return subtype_tuple(xd, yd, e, param);

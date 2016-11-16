@@ -678,7 +678,7 @@ function apply_type_tfunc(args...)
     if type_too_complex(appl,0)
         return Type{_} where _<:headtype
     end
-    !(isa(appl,TypeVar) || isvarargtype(appl)) ? (Type{_} where _<:appl) : Type{appl}
+    !isa(appl,TypeVar) ? (Type{_} where _<:appl) : Type{appl}
 end
 add_tfunc(apply_type, 1, IInf, apply_type_tfunc)
 
@@ -952,11 +952,13 @@ function abstract_call_gf_by_type(f::ANY, argtype::ANY, sv::InferenceState)
             end
         end
 
+        sig = rewrap_unionall(sig, m[1])
+
         # if sig changed, may need to recompute the sparams environment
         if recomputesvec && !isempty(sparams)
             recomputed = ccall(:jl_type_intersection_env, Ref{SimpleVector}, (Any, Any), sig, method.sig)
-            sig = unwrap_unionall(recomputed[1])
-            if !isa(sig, DataType) # probably Union{}
+            sig = recomputed[1]
+            if !isa(unwrap_unionall(sig), DataType) # probably Union{}
                 rettype = Any
                 break
             end

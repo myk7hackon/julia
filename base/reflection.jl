@@ -376,7 +376,6 @@ function _methods(f::ANY,t::ANY,lim)
 end
 
 function _methods_by_ftype(t::ANY, lim)
-#=
     tp = t.parameters::SimpleVector
     nu = 1
     for ti in tp
@@ -388,10 +387,9 @@ function _methods_by_ftype(t::ANY, lim)
         return _methods(Any[tp...], length(tp), lim, [])
     end
     # XXX: the following can return incorrect answers that the above branch would have corrected
-=#
     return ccall(:jl_matching_methods, Any, (Any,Cint,Cint), t, lim, 0)
 end
-#=
+
 function _methods(t::Array,i,lim::Integer,matching::Array{Any,1})
     if i == 0
         new = ccall(:jl_matching_methods, Any, (Any,Cint,Cint), Tuple{t...}, lim, 0)
@@ -414,7 +412,7 @@ function _methods(t::Array,i,lim::Integer,matching::Array{Any,1})
     end
     return matching
 end
-=#
+
 # high-level, more convenient method lookup functions
 
 # type for reflecting and pretty-printing a subset of methods
