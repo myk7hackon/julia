@@ -512,7 +512,17 @@ function getfield_tfunc(s00::ANY, name)
     end
     s = s0 = unwrap_unionall(s00)
     if isType(s)
-        s = typeof(s.parameters[1])
+        p1 = s.parameters[1]
+        if isa(p1,UnionAll)
+            if isa(name,Const)
+                if name.val === :var
+                    return Const(p1.var)
+                elseif name.val === :body
+                    return Type{p1.body}
+                end
+            end
+        end
+        s = typeof(p1)
         if s === TypeVar
             return Any
         end
@@ -588,7 +598,7 @@ function getfield_tfunc(s00::ANY, name)
     # conservatively limit the type depth here,
     # since the UnionAll type bound is otherwise incorrect
     # in the current type system
-    return limit_type_depth(R, 0)
+    return rewrap_unionall(limit_type_depth(R, 0), s00)
 end
 add_tfunc(getfield, 2, 2, (s::ANY, name::ANY) -> getfield_tfunc(s, name))
 add_tfunc(setfield!, 3, 3, (o::ANY, f::ANY, v::ANY) -> v)
@@ -599,8 +609,10 @@ function fieldtype_tfunc(s::ANY, name::ANY)
         return Type
     end
     t = getfield_tfunc(s, name)
-    if t === Bottom || isleaftype(t) || isvarargtype(t)
+    if t === Bottom
         return t
+    elseif isleaftype(t) || isvarargtype(t)
+        return Type{t}
     end
     return Type{_} where _<:t
 end
@@ -705,7 +717,7 @@ function invoke_tfunc(f::ANY, types::ANY, argtype::ANY, sv::InferenceState)
         return Any
     end
     meth = entry.func
-    (ti, env) = ccall(:jl_match_method, Any, (Any, Any, Any), argtype, meth.sig)::SimpleVector
+    (ti, env) = ccall(:jl_match_method, Any, (Any, Any), argtype, meth.sig)::SimpleVector
     return typeinf_edge(meth::Method, ti, env, sv)
 end
 
@@ -746,8 +758,14 @@ function builtin_tfunction(f::ANY, argtypes::Array{Any,1}, sv::InferenceState)
             return Bottom
         end
         a = widenconst(argtypes[1])
-        return (isa(a,DataType) && a<:Array && isa(a.parameters[1],Union{Type,TypeVar}) ?
-                a.parameters[1] : Any)
+        if isa(a,UnionAll)
+            a = unwrap_unionall(a)
+        end
+        if isa(a,DataType) && a<:Array && isa(a.parameters[1],Union{Type,TypeVar})
+            a = a.parameters[1]
+            return isa(a,TypeVar) ? a.ub : a
+        end
+        return Any
     elseif f === Expr
         if length(argtypes) < 1 && !isva
             return Bottom
@@ -1135,6 +1153,14 @@ function abstract_call(f::ANY, fargs, argtypes::Vector{Any}, vtypes::VarTable, s
             ft = widenconst(argtypes[2])
             if isa(ft,DataType) && isdefined(ft.name, :mt) && isdefined(ft.name.mt, :kwsorter)
                 return Const(ft.name.mt.kwsorter)
+            end
+        end
+        return Any
+    elseif f === UnionAll
+        if length(fargs) == 3 && isa(argtypes[2],Const) && isType(argtypes[3])
+            try
+                return Type{UnionAll(argtypes[2].val, argtypes[3].parameters[1])}
+            catch
             end
         end
         return Any
@@ -2319,7 +2345,7 @@ function exprtype(x::ANY, src::CodeInfo, mod::Module)
 end
 
 # known affect-free calls (also effect-free)
-const _pure_builtins = Any[tuple, svec, fieldtype, apply_type, ===, isa, typeof]
+const _pure_builtins = Any[tuple, svec, fieldtype, apply_type, ===, isa, typeof, UnionAll]
 
 # known effect-free calls (might not be affect-free)
 const _pure_builtins_volatile = Any[getfield, arrayref]
@@ -3249,7 +3275,7 @@ function is_known_call_p(e::Expr, pred::ANY, src::CodeInfo, mod::Module)
         return false
     end
     f = exprtype(e.args[1], src, mod)
-    return isa(f, Const) && pred(f.val)
+    return (isa(f, Const) && pred(f.val)) || (isType(f) && pred(f.parameters[1]))
 end
 
 function delete_var!(src::CodeInfo, id, T)

@@ -1025,7 +1025,14 @@ static jl_value_t *finish_unionall(jl_value_t *res, jl_varbinding_t *vb, jl_sten
     if (jl_has_typevar(res, vb->var)) {
         res = jl_new_struct(jl_unionall_type, vb->var, res);
         if (varval) {
-            res = jl_instantiate_unionall((jl_unionall_t*)res, varval);
+            JL_TRY {
+                // you can construct `T{x} where x` even if T's parameter is actually
+                // limited. in that case we might get an invalid instantiation here.
+                res = jl_instantiate_unionall((jl_unionall_t*)res, varval);
+            }
+            JL_CATCH {
+                res = jl_bottom_type;
+            }
         }
         else {
             root = (jl_value_t*)jl_new_typevar(vb->var->name, vb->lb, vb->ub);
