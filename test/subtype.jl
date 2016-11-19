@@ -63,6 +63,9 @@ function test_2()
     @test !(Tuple{Int,Vararg{Int,2}} <: Tuple{Int,Int,Int,Vararg{Int,1}})
     @test Tuple{Int,Vararg{Int}} == Tuple{Int,Vararg{Int}}
     @test (@UnionAll N Tuple{Int,Vararg{Int,N}}) == (@UnionAll N Tuple{Int,Vararg{Int,N}})
+
+    @test issub_strict(Tuple{Tuple{Int,Int},Tuple{Int,Int}}, Tuple{NTuple{N,Int},NTuple{N,Int}} where N)
+    @test !issub(Tuple{Tuple{Int,Int},Tuple{Int,}}, Tuple{NTuple{N,Int},NTuple{N,Int}} where N)
 end
 
 function test_diagonal()
@@ -568,7 +571,7 @@ macro testintersect(a, b, result)
     end)
 end
 
-abstract IT4805{N, T}
+abstract IT4805_2{N, T}
 abstract AbstractThing{T,N}
 type ConcreteThing{T<:AbstractFloat,N} <: AbstractThing{T,N}
 end
@@ -709,8 +712,8 @@ function test_intersection()
     @testintersect((@UnionAll T<:Union{Float64,Array{Float64,1}} T), Real, Float64)
 
     # issue #4805
-    @testintersect((@UnionAll T<:Int Type{IT4805{1,T}}),
-                   (@UnionAll S<:(@UnionAll N IT4805{N,Int}) Type{S}),
+    @testintersect((@UnionAll T<:Int Type{IT4805_2{1,T}}),
+                   (@UnionAll S<:(@UnionAll N IT4805_2{N,Int}) Type{S}),
                    !Bottom)
 
     # issue #8851

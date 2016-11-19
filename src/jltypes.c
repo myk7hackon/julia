@@ -1356,8 +1356,8 @@ static int jl_tuple_morespecific(jl_datatype_t *cdt, jl_datatype_t *pdt, int inv
             pseq = (pi<plenr) && plenkind != JL_TUPLE_FIXED && jl_is_vararg_type(parent[pi]);
         if (ci >= clenf && !cseq)
             return 1;
-        if (pi >= plenf && !pseq && !some_morespecific)
-            return 0;
+        if (pi >= plenf && !pseq)
+            return (clenf==plenf || cseq) && some_morespecific;
         if (ci < clenr) {
             ce = child[ci];
             if (jl_is_vararg_type(ce)) ce = jl_unwrap_vararg(ce);
@@ -1532,13 +1532,15 @@ static int type_morespecific_(jl_value_t *a, jl_value_t *b, int invariant)
                 type_morespecific_((jl_value_t*)((jl_tvar_t*)b)->lb,
                                    (jl_value_t*)((jl_tvar_t*)a)->lb, 0);
         }
-        if (invariant)
-            return 0;
+        //if (invariant)
+        //    return 0;
         return jl_subtype((jl_value_t*)((jl_tvar_t*)a)->ub, b);
     }
     if (jl_is_typevar(b)) {
         return jl_subtype(a, (jl_value_t*)((jl_tvar_t*)b)->ub) &&
             jl_subtype((jl_value_t*)((jl_tvar_t*)b)->lb, a);
+        //return !jl_subtype((jl_value_t*)((jl_tvar_t*)b)->ub, a) &&
+        //    type_morespecific_(a, (jl_value_t*)((jl_tvar_t*)b)->ub, 0);
     }
     if ((jl_datatype_t*)a == jl_any_type) return 0;
 
@@ -1664,7 +1666,7 @@ void jl_init_types(void)
                                             jl_symbol("isleaftype"));
     jl_datatype_type->types = jl_svec(16,
                                       jl_typename_type,
-                                      jl_type_type,
+                                      jl_datatype_type,
                                       jl_simplevector_type,
                                       jl_simplevector_type,
                                       jl_any_type, // instance

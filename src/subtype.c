@@ -477,7 +477,13 @@ static int check_vararg_length(jl_value_t *v, ssize_t n, jl_stenv_t *e)
     jl_value_t *N = jl_tparam1(tail);
     // only do the check if N is free in the tuple type's last parameter
     if (N != (jl_value_t*)va_p1 && N != (jl_value_t*)va_p2) {
-        if (!subtype(jl_box_long(n), N, e, 2))
+        jl_value_t *nn = jl_box_long(n);
+        JL_GC_PUSH1(&nn);
+        e->invdepth++;
+        int ans = subtype(nn, N, e, 2) && subtype(N, nn, e, 0);
+        e->invdepth--;
+        JL_GC_POP();
+        if (!ans)
             return 0;
     }
     return 1;
@@ -808,16 +814,18 @@ JL_DLLEXPORT int jl_isa(jl_value_t *x, jl_value_t *t)
     if (jl_is_type(x)) {
         if (t == (jl_value_t*)jl_type_type)
             return 1;
-        if (jl_is_leaf_type(t)) {
-            if (jl_is_type_type(t))
-                return jl_types_equal(x, jl_tparam0(t));
-            return 0;
+        if (!jl_has_free_typevars(x)) {
+            if (jl_is_leaf_type(t)) {
+                if (jl_is_type_type(t))
+                    return jl_types_equal(x, jl_tparam0(t));
+                return 0;
+            }
+            JL_GC_PUSH1(&x);
+            x = (jl_value_t*)jl_wrap_Type(x);
+            int ans = jl_subtype(x, t);
+            JL_GC_POP();
+            return ans;
         }
-        JL_GC_PUSH1(&x);
-        x = (jl_value_t*)jl_wrap_Type(x);
-        int ans = jl_subtype(x, t);
-        JL_GC_POP();
-        return ans;
     }
     if (jl_is_leaf_type(t))
         return 0;
@@ -1623,7 +1631,7 @@ jl_value_t *jl_type_intersection_matching(jl_value_t *a, jl_value_t *b, jl_svec_
     }
     else {
         int lta = jl_is_leaf_type(a), ltb = jl_is_leaf_type(b);
-        if ((lta && ltb) || (lta && !is_kind(a)) || (ltb && !is_kind(b)))
+        if (lta && ltb)
             goto bot;
         jl_stenv_t e;
         init_stenv(&e, NULL, 0);

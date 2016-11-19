@@ -782,7 +782,7 @@ let
     # issue #1202
     foor(x::Union) = 1
     @test_throws MethodError foor(StridedArray)
-    @test foor(StridedArray.body) == 1
+    @test foor(Base.unwrap_unionall(StridedArray)) == 1
     @test_throws MethodError foor(StridedArray)
 end
 
@@ -1259,8 +1259,8 @@ g4413(::Union{A4413, B4413, C4413}) = "ABC"
 # tuple argument, but it shouldn't do that for an argument that a static
 # parameter depends on.
 f4482{T}(x::T) = T
-@test f4482((Ptr,Ptr)) === Tuple{DataType,DataType}
-@test f4482((Ptr,))    === Tuple{DataType,}
+@test f4482((Ptr,Ptr)) === Tuple{UnionAll,UnionAll}
+@test f4482((Ptr,))    === Tuple{UnionAll,}
 
 # issue #4486
 try
@@ -1380,6 +1380,9 @@ macro make_closure()
 end
 end # module
 @test (Lib4771.@make_closure)(0) == 1
+
+# issue #4805
+abstract IT4805{N, T}
 
 let
     test0{T <: Int64}(::Type{IT4805{1, T}}, x) = x

@@ -19,13 +19,9 @@ extern "C" {
 // compute whether the specificity of this type is equivalent to Any in the sort order
 static int jl_is_any(jl_value_t *t1)
 {
-    return (t1 == (jl_value_t*)jl_any_type || t1 == jl_ANY_flag);
-    // TODO jb/subtype
-    /*
+    return (t1 == (jl_value_t*)jl_any_type || t1 == jl_ANY_flag ||
             (jl_is_typevar(t1) &&
-             ((jl_tvar_t*)t1)->ub == (jl_value_t*)jl_any_type &&
-             !((jl_tvar_t*)t1)->bound));
-    */
+             ((jl_tvar_t*)t1)->ub == (jl_value_t*)jl_any_type));
 }
 
 // ----- Type Signature Subtype Testing ----- //
@@ -91,6 +87,7 @@ static int sig_match_by_type_simple(jl_value_t **types, size_t n, jl_tupletype_t
                 return 0;
         }
         jl_value_t *t = jl_tparam0(decl);
+        if (jl_is_typevar(t)) t = ((jl_tvar_t*)t)->ub;
         for(; i < n; i++) {
             if (!jl_subtype(types[i], t))
                 return 0;

@@ -348,16 +348,16 @@ static jl_tupletype_t *join_tsig(jl_tupletype_t *tt, jl_tupletype_t *sig)
 
         if (jl_is_type_type(elt)) {
             // if the declared type was not Any or Union{Type, ...},
-            // then the match must been with TypeConstructor or DataType
+            // then the match must been with UnionAll or DataType
             // and the result of matching the type signature
             // needs to be corrected to the leaf type 'kind'
             jl_value_t *kind = jl_typeof(jl_tparam0(elt));
             if (jl_subtype(kind, decl_i)) {
                 if (!jl_subtype((jl_value_t*)jl_type_type, decl_i)) {
-                    // TypeConstructors are problematic because they can be alternate
+                    // UnionAlls are problematic because they can be alternate
                     // representations of any type. If we matched this method because
-                    // it matched the leaf type TypeConstructor, then don't
-                    // cache something different since that doesn't necessarily actually apply
+                    // it matched the leaf type UnionAll, then don't cache something
+                    // different since that doesn't necessarily actually apply.
                     //
                     // similarly, if we matched Type{T<:Any}::DataType,
                     // then we don't want to cache it that way
@@ -1124,8 +1124,6 @@ void JL_NORETURN jl_method_error(jl_function_t *f, jl_value_t **args, size_t na)
     // not reached
 }
 
-jl_datatype_t *jl_wrap_Type(jl_value_t *t);
-
 jl_tupletype_t *arg_type_tuple(jl_value_t **args, size_t nargs)
 {
     jl_tupletype_t *tt;
@@ -1140,7 +1138,11 @@ jl_tupletype_t *arg_type_tuple(jl_value_t **args, size_t nargs)
             else
                 types[i] = jl_typeof(ai);
         }
-        tt = (jl_tupletype_t*)jl_inst_concrete_tupletype_v(types, nargs);
+        // if `ai` has free type vars this will not be a leaf type.
+        // TODO: it would be really nice to only dispatch and cache those as
+        // `jl_typeof(ai)`, but that will require some redesign of the caching
+        // logic.
+        tt = jl_apply_tuple_type_v(types, nargs);
         JL_GC_POP();
     }
     else {
@@ -1153,7 +1155,7 @@ jl_tupletype_t *arg_type_tuple(jl_value_t **args, size_t nargs)
             else
                 jl_svecset(types, i, jl_typeof(ai));
         }
-        tt = (jl_tupletype_t*)jl_inst_concrete_tupletype(types);
+        tt = jl_apply_tuple_type(types);
         JL_GC_POP();
     }
     return tt;
